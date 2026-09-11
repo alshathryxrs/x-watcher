@@ -1,0 +1,11 @@
+{
+  "name": "x-watcher",
+  "version": "1.0.0",
+  "main": "live_watcher4.js",
+  "scripts": {
+    "start": "node live_watcher4.js"
+  },
+  "dependencies": {
+    "ws": "^8.13.0"
+  }
+}
