@@ -25,7 +25,7 @@ async function sendBarkSafe(title, message) {
       body: JSON.stringify({
         title:   title,
         body:    message,
-        sound:   'chime',
+        sound:   'fanfare',
         level:   'critical',
       })
     });
