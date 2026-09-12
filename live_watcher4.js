@@ -16,7 +16,6 @@ const NOORA_USER_ID  = '2082060317358743552';
 // ==================== BARK CONFIGURATION ====================
 const BARK_KEY    = 'aAQmJDszVrdbc9braKD8am';
 const BARK_SERVER = 'https://api.day.app';
-const BARK_ICON   = 'https://pbs.twimg.com/profile_images/2071530886810771456/gwvAIXM2_400x400.jpg';
 
 async function sendBarkSafe(title, message) {
   try {
@@ -28,7 +27,6 @@ async function sendBarkSafe(title, message) {
         body:    message,
         sound:   'chime',
         level:   'critical',
-        Icon:    BARK_ICON,
       })
     });
   } catch (err) {
