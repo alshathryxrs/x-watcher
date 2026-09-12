@@ -6,19 +6,22 @@ const CT0 = '6fd94ab6e318068f4e34c27c07d5b055541c8447ddc43e14d8ac0cedbe02a6efb50
 const BEARER_TOKEN = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 // ====================================================================
 
+// ==================== USER ID FILTERS ====================
+const MY_USER_ID     = '704772337';
+const TARGET_USER_ID = '1885488902670000129';
+const REEM_USER_ID   = '954222428791681025';
+const NOORA_USER_ID  = '2082060317358743552';
+// =========================================================
+
 // ==================== NTFY CONFIGURATION ====================
-const NTFY_TOPIC = "JamilaActivatedHerXAccount"; // Change this if you want a private topic
+const NTFY_TOPIC = "JamilaActivatedHerXAccount";
 
 async function sendNtfySafe(title, message) {
   try {
     await fetch("https://ntfy.sh/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        topic: NTFY_TOPIC,
-        title: title,
-        message: message
-      })
+      body: JSON.stringify({ topic: NTFY_TOPIC, title, message })
     });
   } catch (err) {
     console.error(`[${new Date().toLocaleTimeString()}] ntfy failed:`, err.message);
@@ -27,45 +30,35 @@ async function sendNtfySafe(title, message) {
 // ============================================================
 
 let isReady = false;
-let isTyping = false;
-let stopTimer = null;
+
+let isTargetTyping  = false; let targetStopTimer  = null;
+let isReemTyping    = false; let reemStopTimer    = null;
+let isNooraTyping   = false; let nooraStopTimer   = null;
+let isSomeoneTyping = false; let someoneStopTimer = null;
 
 async function fetchWsUrl() {
   console.log(`[${new Date().toLocaleTimeString()}] 🔄 Requesting fresh WS token via GraphQL...`);
 
   const res = await fetch("https://api.x.com/graphql/Qh3fZRjPPtPoHYR_2sCZsA/GenerateXChatTokenMutation", {
+    method: "POST",
     headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0",
-      "Accept": "application/json",
-      "Content-Type": "application/json",
-      "x-csrf-token": CT0,
+      "User-Agent":    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0",
+      "Accept":        "application/json",
+      "Content-Type":  "application/json",
+      "x-csrf-token":  CT0,
       "authorization": BEARER_TOKEN,
-      "Cookie": `auth_token=${AUTH_TOKEN}; ct0=${CT0};`,
-      "Origin": "https://x.com",
-      "Referer": "https://x.com/"
+      "Cookie":        `auth_token=${AUTH_TOKEN}; ct0=${CT0};`,
+      "Origin":        "https://x.com",
+      "Referer":       "https://x.com/"
     },
-    body: JSON.stringify({ variables: {} }),
-    method: "POST"
+    body: JSON.stringify({ variables: {} })
   });
 
-  if (!res.ok) {
-    throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-  }
+  if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
 
   const json = await res.json();
-  
-  let token = null;
-  if (json.data && json.data.user_get_x_chat_auth_token) {
-    token = json.data.user_get_x_chat_auth_token.token;
-  } else if (json.user_get_x_chat_auth_token) {
-    token = json.user_get_x_chat_auth_token.token;
-  }
-
-  if (!token) {
-    console.error("Unexpected JSON response:", json);
-    throw new Error('Token key not found in GraphQL response.');
-  }
-
+  const token = json?.data?.user_get_x_chat_auth_token?.token || json?.user_get_x_chat_auth_token?.token || null;
+  if (!token) throw new Error('Token key not found in GraphQL response.');
   return `wss://chat-ws.x.com/ws?token=${token}`;
 }
 
@@ -77,8 +70,8 @@ async function startMonitoring() {
     const ws = new WebSocket(wsUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0',
-        'Origin': 'https://x.com',
-        'Cookie': `auth_token=${AUTH_TOKEN}; ct0=${CT0};`
+        'Origin':     'https://x.com',
+        'Cookie':     `auth_token=${AUTH_TOKEN}; ct0=${CT0};`
       }
     });
 
@@ -86,7 +79,7 @@ async function startMonitoring() {
       console.log(`[${new Date().toLocaleTimeString()}] 🟢 ONLINE: Clearing backlog (3s)...`);
       setTimeout(() => {
         isReady = true;
-        console.log('⚡ NOW LISTENING LIVE FOR TYPING INDICATORS!\n');
+        console.log('⚡ NOW LISTENING — TARGET + REEM + NOORA + ANYONE (except me)\n');
       }, 3000);
     });
 
@@ -94,28 +87,75 @@ async function startMonitoring() {
       if (!isReady) return;
 
       const buffer = Buffer.from(data);
-      if (buffer.toString('base64') === 'DAACDAACAAAA') return; // Skip keep-alives
+      if (buffer.toString('base64') === 'DAACDAACAAAA') return;
 
-      const text = buffer.toString('utf8').replace(/[^\x20-\x7E]+/g, ' ').trim();
-      const isChatMessage = /^\d{18,20}/.test(text);
+      const rawText = buffer.toString('utf8');
+      const cleaned = rawText.replace(/[^\x20-\x7E]+/g, ' ').trim();
 
-      if (!isChatMessage) {
-        const now = new Date().toLocaleTimeString();
+      // Frame structure: $<uuid> <TYPER_ID> <MY_ID>:<PARTNER_ID> ...
+      const typerID = cleaned.split(' ')[1];
 
-        if (!isTyping) {
-          isTyping = true;
-          console.log(`⌨️  [${now}] ALERT: Someone is TYPING!`);
-          // --- NTFY NOTIFICATION TRIGGER ---
-          sendNtfySafe("TYPING", "TYPING WATCHER: Someone is typing right now!");
+      if (!typerID || !/^\d{6,20}$/.test(typerID)) return;
+      if (typerID === MY_USER_ID) return;
+
+      const now = new Date().toLocaleTimeString();
+
+      // ── TARGET ──
+      if (typerID === TARGET_USER_ID) {
+        if (!isTargetTyping) {
+          isTargetTyping = true;
+          console.log(`⌨️  [${now}] ALERT: Target is TYPING!`);
+          sendNtfySafe("TYPING", "TYPING WATCHER: Target is typing right now!");
         }
-
-        clearTimeout(stopTimer);
-        stopTimer = setTimeout(() => {
-          isTyping = false;
-          console.log(`⏹️  [${new Date().toLocaleTimeString()}] STOPPED TYPING.`);
-          console.log('--------------------------------------------------');
+        clearTimeout(targetStopTimer);
+        targetStopTimer = setTimeout(() => {
+          isTargetTyping = false;
+          console.log(`⏹️  [${new Date().toLocaleTimeString()}] Target STOPPED TYPING.\n${'--'.repeat(25)}`);
         }, 4000);
+        return;
       }
+
+      // ── REEM ──
+      if (typerID === REEM_USER_ID) {
+        if (!isReemTyping) {
+          isReemTyping = true;
+          console.log(`⌨️  [${now}] ALERT: REEM is TYPING!`);
+          sendNtfySafe("REEM", "TYPING WATCHER: REEM is typing right now!");
+        }
+        clearTimeout(reemStopTimer);
+        reemStopTimer = setTimeout(() => {
+          isReemTyping = false;
+          console.log(`⏹️  [${new Date().toLocaleTimeString()}] REEM STOPPED TYPING.\n${'--'.repeat(25)}`);
+        }, 4000);
+        return;
+      }
+
+      // ── NOORA ──
+      if (typerID === NOORA_USER_ID) {
+        if (!isNooraTyping) {
+          isNooraTyping = true;
+          console.log(`⌨️  [${now}] ALERT: NOORA is TYPING!`);
+          sendNtfySafe("NOORA", "TYPING WATCHER: NOORA is typing right now!");
+        }
+        clearTimeout(nooraStopTimer);
+        nooraStopTimer = setTimeout(() => {
+          isNooraTyping = false;
+          console.log(`⏹️  [${new Date().toLocaleTimeString()}] NOORA STOPPED TYPING.\n${'--'.repeat(25)}`);
+        }, 4000);
+        return;
+      }
+
+      // ── SOMEONE ELSE ──
+      if (!isSomeoneTyping) {
+        isSomeoneTyping = true;
+        console.log(`👤 [${now}] ALERT: Someone is TYPING! (ID: ${typerID})`);
+        sendNtfySafe("SOMEONE", "TYPING WATCHER: Someone is typing right now!");
+      }
+      clearTimeout(someoneStopTimer);
+      someoneStopTimer = setTimeout(() => {
+        isSomeoneTyping = false;
+        console.log(`⏹️  [${new Date().toLocaleTimeString()}] Someone STOPPED TYPING.\n${'--'.repeat(25)}`);
+      }, 4000);
     });
 
     ws.on('close', () => {
@@ -126,15 +166,12 @@ async function startMonitoring() {
 
     ws.on('error', (err) => {
       console.error('WS Error:', err.message);
-      // --- NTFY ERROR TRIGGER ---
       sendNtfySafe("ERROR", `TYPING WATCHER: Connection Error - ${err.message}`);
     });
 
   } catch (err) {
     console.error('Auth Error:', err.message);
-    // --- NTFY ERROR TRIGGER ---
     sendNtfySafe("ERROR", `TYPING WATCHER: Auth Error - ${err.message}`);
-    
     console.log('Retrying in 5 seconds...\n');
     setTimeout(startMonitoring, 5000);
   }
