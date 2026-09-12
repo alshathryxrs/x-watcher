@@ -13,14 +13,38 @@ const REEM_USER_ID   = '954222428791681025';
 const NOORA_USER_ID  = '2082060317358743552';
 // =========================================================
 
+// ==================== BARK CONFIGURATION ====================
+const BARK_KEY    = 'aAQmJDszVrdbc9braKD8am';
+const BARK_SERVER = 'https://api.day.app';
+const BARK_ICON   = 'https://pbs.twimg.com/profile_images/2071530886810771456/gwvAIXM2_400x400.jpg';
+
+async function sendBarkSafe(title, message) {
+  try {
+    await fetch(`${BARK_SERVER}/${BARK_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        title:   title,
+        body:    message,
+        sound:   'chime',
+        level:   'critical',
+        Icon:    BARK_ICON,
+      })
+    });
+  } catch (err) {
+    console.error(`[${new Date().toLocaleTimeString()}] Bark failed:`, err.message);
+  }
+}
+// ============================================================
+
 // ==================== NTFY CONFIGURATION ====================
-const NTFY_TOPIC = "JamilaActivatedHerXAccount";
+const NTFY_TOPIC = 'JamilaActivatedHerXAccount';
 
 async function sendNtfySafe(title, message) {
   try {
-    await fetch("https://ntfy.sh/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    await fetch('https://ntfy.sh/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topic: NTFY_TOPIC, title, message })
     });
   } catch (err) {
@@ -39,17 +63,17 @@ let isSomeoneTyping = false; let someoneStopTimer = null;
 async function fetchWsUrl() {
   console.log(`[${new Date().toLocaleTimeString()}] 🔄 Requesting fresh WS token via GraphQL...`);
 
-  const res = await fetch("https://api.x.com/graphql/Qh3fZRjPPtPoHYR_2sCZsA/GenerateXChatTokenMutation", {
-    method: "POST",
+  const res = await fetch('https://api.x.com/graphql/Qh3fZRjPPtPoHYR_2sCZsA/GenerateXChatTokenMutation', {
+    method: 'POST',
     headers: {
-      "User-Agent":    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0",
-      "Accept":        "application/json",
-      "Content-Type":  "application/json",
-      "x-csrf-token":  CT0,
-      "authorization": BEARER_TOKEN,
-      "Cookie":        `auth_token=${AUTH_TOKEN}; ct0=${CT0};`,
-      "Origin":        "https://x.com",
-      "Referer":       "https://x.com/"
+      'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0',
+      'Accept':        'application/json',
+      'Content-Type':  'application/json',
+      'x-csrf-token':  CT0,
+      'authorization': BEARER_TOKEN,
+      'Cookie':        `auth_token=${AUTH_TOKEN}; ct0=${CT0};`,
+      'Origin':        'https://x.com',
+      'Referer':       'https://x.com/'
     },
     body: JSON.stringify({ variables: {} })
   });
@@ -105,7 +129,7 @@ async function startMonitoring() {
         if (!isTargetTyping) {
           isTargetTyping = true;
           console.log(`⌨️  [${now}] ALERT: Target is TYPING!`);
-          sendNtfySafe("TYPING", "TYPING WATCHER: Target is typing right now!");
+          sendNtfySafe('TYPING', 'TYPING WATCHER: Target is typing right now!');
         }
         clearTimeout(targetStopTimer);
         targetStopTimer = setTimeout(() => {
@@ -115,12 +139,13 @@ async function startMonitoring() {
         return;
       }
 
-      // ── REEM ──
+      // ── REEM ── ntfy + Bark
       if (typerID === REEM_USER_ID) {
         if (!isReemTyping) {
           isReemTyping = true;
           console.log(`⌨️  [${now}] ALERT: REEM is TYPING!`);
-          sendNtfySafe("REEM", "TYPING WATCHER: REEM is typing right now!");
+          sendNtfySafe('REEM', 'TYPING WATCHER: REEM is typing right now!');
+          sendBarkSafe('REEM', 'REEM is typing right now!');
         }
         clearTimeout(reemStopTimer);
         reemStopTimer = setTimeout(() => {
@@ -130,12 +155,13 @@ async function startMonitoring() {
         return;
       }
 
-      // ── NOORA ──
+      // ── NOORA ── ntfy + Bark
       if (typerID === NOORA_USER_ID) {
         if (!isNooraTyping) {
           isNooraTyping = true;
           console.log(`⌨️  [${now}] ALERT: NOORA is TYPING!`);
-          sendNtfySafe("NOORA", "TYPING WATCHER: NOORA is typing right now!");
+          sendNtfySafe('NOORA', 'TYPING WATCHER: NOORA is typing right now!');
+          sendBarkSafe('NOORA', 'NOORA is typing right now!');
         }
         clearTimeout(nooraStopTimer);
         nooraStopTimer = setTimeout(() => {
@@ -149,7 +175,7 @@ async function startMonitoring() {
       if (!isSomeoneTyping) {
         isSomeoneTyping = true;
         console.log(`👤 [${now}] ALERT: Someone is TYPING! (ID: ${typerID})`);
-        sendNtfySafe("SOMEONE", "TYPING WATCHER: Someone is typing right now!");
+        sendNtfySafe('SOMEONE', 'TYPING WATCHER: Someone is typing right now!');
       }
       clearTimeout(someoneStopTimer);
       someoneStopTimer = setTimeout(() => {
@@ -166,12 +192,12 @@ async function startMonitoring() {
 
     ws.on('error', (err) => {
       console.error('WS Error:', err.message);
-      sendNtfySafe("ERROR", `TYPING WATCHER: Connection Error - ${err.message}`);
+      sendNtfySafe('ERROR', `TYPING WATCHER: Connection Error - ${err.message}`);
     });
 
   } catch (err) {
     console.error('Auth Error:', err.message);
-    sendNtfySafe("ERROR", `TYPING WATCHER: Auth Error - ${err.message}`);
+    sendNtfySafe('ERROR', `TYPING WATCHER: Auth Error - ${err.message}`);
     console.log('Retrying in 5 seconds...\n');
     setTimeout(startMonitoring, 5000);
   }
