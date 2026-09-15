@@ -14,26 +14,9 @@ const REEM_USER_ID   = '954222428791681025';
 const NOORA_USER_ID  = '2082060317358743552';
 // =========================================================
 
-// ==================== BARK CONFIGURATION ====================
-const BARK_KEY    = 'aAQmJDszVrdbc9braKD8am';
-const BARK_SERVER = 'https://api.day.app';
-
-  try {
-    await fetch(`${BARK_SERVER}/${BARK_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({
-        title: title,
-        body:  message,
-        sound: 'chime',
-        level: 'critical',
-      })
-    });
-  } catch (err) {
-    console.error(`[${new Date().toLocaleTimeString()}] Bark failed:`, err.message);
-  }
-}
-// ============================================================
+// ==================== BARK (disabled) ====================
+function sendBarkSafe(title, message) { /* disabled */ }
+// ===========================================================
 
 // ==================== NTFY CONFIGURATION ====================
 const NTFY_TOPIC = 'JamilaActivatedHerXAccount';
